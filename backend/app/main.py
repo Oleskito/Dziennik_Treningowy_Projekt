@@ -9,7 +9,7 @@ app = FastAPI(title="Dziennik Treningowy API")
 def sprawdz_polaczenie_z_baza():
     try:
         polaczenie = psycopg.connect(
-            host=os.getenv("DB_HOST", "baza"),
+            host=os.getenv("DB_HOST"),
             dbname=os.getenv("POSTGRES_DB"),
             user=os.getenv("POSTGRES_USER"),
             password=os.getenv("POSTGRES_PASSWORD"),
