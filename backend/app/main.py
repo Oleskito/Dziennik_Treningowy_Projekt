@@ -1,7 +1,7 @@
 import os
 
 import psycopg
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from psycopg.rows import dict_row
 
 app = FastAPI(title="Dziennik Treningowy API")
@@ -38,8 +38,17 @@ def status_systemu():
     stan_bazy = sprawdz_polaczenie_z_baza()
     return {"status_backendu": "ok", "status_bazy": stan_bazy}
 
-
 @app.get("/treningi")
 def pobierz_treningi():
     with polacz_z_baza() as polaczenie:
         return polaczenie.execute("SELECT id, data, nazwa FROM treningi ORDER BY id").fetchall()
+
+
+@app.get("/treningi/{id_treningu}")
+def pobierz_treningi(id_treningu: int):
+    with polacz_z_baza() as polaczenie:
+        trening = polaczenie.execute("SELECT id, data, nazwa FROM treningi WHERE id = %s", (id_treningu,),).fetchone()
+
+        if trening is None:
+            raise HTTPException(status_code =404, detail="Nie znaleziono treningu",)
+        return trening
