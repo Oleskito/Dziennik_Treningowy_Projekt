@@ -13,3 +13,11 @@ CREATE TABLE IF NOT EXISTS cwiczenia (
     ciezar_kg NUMERIC(5,2) DEFAULT 0
 );
 
+INSERT INTO treningi (data, nazwa) VALUES 
+('2026-11-01', 'Góra ciała - Siła'),
+('2026-11-03', 'Trening Obwodowy');
+
+INSERT INTO cwiczenia (trening_id, nazwa_cwiczenia, serie, powtorzenia, ciezar_kg) VALUES 
+(1, 'Wyciskanie na maszynie', 4, 10, 45.0),
+(1, 'Rozpiętki Butterfly', 3, 12, 50.0),
+(2, 'Wznosy bokiem', 4, 15, 10.0);

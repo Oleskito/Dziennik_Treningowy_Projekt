@@ -37,15 +37,6 @@ def polacz_z_baza():
     )
 
 
-def sprawdz_polaczenie_z_baza():
-    try:
-        polaczenie = polacz_z_baza()
-        polaczenie.close()
-        return "Połaczono z bazą postgres"
-    except Exception as blad:
-        return f"Błąd połączenia z bazą: {str(blad)}"
-
-
 @app.get("/")
 def strona_glowna():
     return {"komunikat": "Dziennik Treningowy - Backend działa poprawnie!"}
