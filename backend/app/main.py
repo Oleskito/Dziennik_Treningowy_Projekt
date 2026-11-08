@@ -1,10 +1,29 @@
 import os
+from datetime import date
+from typing import Annotated
 
 import psycopg
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
+from pydantic import BaseModel, StringConstraints
 from psycopg.rows import dict_row
 
 app = FastAPI(title="Dziennik Treningowy API")
+
+
+class NowyTrening(BaseModel):
+    data: date
+    nazwa: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+
+@app.exception_handler(RequestValidationError)
+async def obsluz_blad_walidacji(zapytanie: Request, blad: RequestValidationError):
+    odpowiedz = await request_validation_exception_handler(zapytanie, blad)
+
+    if zapytanie.method == "POST" and zapytanie.url.path == "/treningi":
+        odpowiedz.status_code = 400
+    return odpowiedz
 
 
 def polacz_z_baza():
@@ -52,3 +71,23 @@ def pobierz_treningi(id_treningu: int):
         if trening is None:
             raise HTTPException(status_code =404, detail="Nie znaleziono treningu",)
         return trening
+
+
+@app.post("/treningi", status_code=201)
+def dodaj_trening(trening: NowyTrening):
+    with polacz_z_baza() as polaczenie:
+        return polaczenie.execute("INSERT INTO treningi (data, nazwa) VALUES (%s, %s) RETURNING id, data, nazwa",(trening.data, trening.nazwa),).fetchone()
+
+
+@app.delete("/treningi/{id_treningu}")
+def usun_trening(id_treningu: int):
+    with polacz_z_baza() as polaczenie:
+        trening = polaczenie.execute("DELETE FROM treningi WHERE id = %s RETURNING id",(id_treningu,),).fetchone()
+
+        if trening is None:
+            raise HTTPException(status_code=404, detail="Nie znaleziono treningu")
+
+        return {"komunikat": "Trening został usunięty", "id": trening["id"]}
+
+
+    
