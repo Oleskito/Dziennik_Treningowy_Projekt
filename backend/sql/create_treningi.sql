@@ -3,3 +3,13 @@ CREATE TABLE IF NOT EXISTS treningi (
     data DATE NOT NULL,
     nazwa TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS cwiczenia (
+    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    trening_id INTEGER NOT NULL REFERENCES treningi(id) ON DELETE CASCADE,
+    nazwa_cwiczenia TEXT NOT NULL,
+    serie INTEGER NOT NULL,
+    powtorzenia INTEGER NOT NULL,
+    ciezar_kg NUMERIC(5,2) DEFAULT 0
+);
+

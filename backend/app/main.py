@@ -6,8 +6,8 @@ import psycopg
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, StringConstraints
 from psycopg.rows import dict_row
+from pydantic import BaseModel, StringConstraints
 
 app = FastAPI(title="Dziennik Treningowy API")
 
@@ -53,41 +53,58 @@ def strona_glowna():
 
 @app.get("/health")
 def status_systemu():
-    # Endpoint sprawdzający połączenie frontendu z backendem i backendu z bazą
-    stan_bazy = sprawdz_polaczenie_z_baza()
-    return {"status_backendu": "ok", "status_bazy": stan_bazy}
+    try:
+        with polacz_z_baza() as polaczenie:
+            polaczenie.execute("SELECT 1")
+        return {"status_backendu": "ok", "status_bazy": "ok"}
+    except Exception as blad:
+        raise HTTPException(
+            status_code=503, detail=f"Brak połączenia z bazą: {str(blad)}"
+        )
+
 
 @app.get("/treningi")
 def pobierz_treningi():
     with polacz_z_baza() as polaczenie:
-        return polaczenie.execute("SELECT id, data, nazwa FROM treningi ORDER BY id").fetchall()
+        return polaczenie.execute(
+            "SELECT id, data, nazwa FROM treningi ORDER BY id"
+        ).fetchall()
 
 
 @app.get("/treningi/{id_treningu}")
-def pobierz_treningi(id_treningu: int):
+def pobierz_trening(id_treningu: int):
     with polacz_z_baza() as polaczenie:
-        trening = polaczenie.execute("SELECT id, data, nazwa FROM treningi WHERE id = %s", (id_treningu,),).fetchone()
+        trening = polaczenie.execute(
+            "SELECT id, data, nazwa FROM treningi WHERE id = %s",
+            (id_treningu,),
+        ).fetchone()
 
         if trening is None:
-            raise HTTPException(status_code =404, detail="Nie znaleziono treningu",)
+            raise HTTPException(
+                status_code=404,
+                detail="Nie znaleziono treningu",
+            )
         return trening
 
 
 @app.post("/treningi", status_code=201)
 def dodaj_trening(trening: NowyTrening):
     with polacz_z_baza() as polaczenie:
-        return polaczenie.execute("INSERT INTO treningi (data, nazwa) VALUES (%s, %s) RETURNING id, data, nazwa",(trening.data, trening.nazwa),).fetchone()
+        return polaczenie.execute(
+            "INSERT INTO treningi (data, nazwa) VALUES (%s, %s) RETURNING id, data, nazwa",
+            (trening.data, trening.nazwa),
+        ).fetchone()
 
 
 @app.delete("/treningi/{id_treningu}")
 def usun_trening(id_treningu: int):
     with polacz_z_baza() as polaczenie:
-        trening = polaczenie.execute("DELETE FROM treningi WHERE id = %s RETURNING id",(id_treningu,),).fetchone()
+        trening = polaczenie.execute(
+            "DELETE FROM treningi WHERE id = %s RETURNING id",
+            (id_treningu,),
+        ).fetchone()
 
         if trening is None:
             raise HTTPException(status_code=404, detail="Nie znaleziono treningu")
 
         return {"komunikat": "Trening został usunięty", "id": trening["id"]}
-
-
-    
