@@ -7,7 +7,7 @@ Tematem jest stworzenie dziennika treningowego, który będzie miał poprawną s
 
 # Kroki uruchomienia:
 1. przygotowanie zmiennych środowiskowych na podstawie .env.example
-2. zbudowanie i uruchomienie kontenerów - docker compose up --build
+2. zbudowanie i uruchomienie kontenerów - docker compose up --build -d
 3. url aplikacji :
 -Frontent: http://localhost:8501
 -Backend: http://localhost:8000/health
