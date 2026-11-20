@@ -4,142 +4,127 @@ from datetime import date
 import requests
 import streamlit as st
 
-st.set_page_config(page_title="Dziennik Treningowy", page_icon="🏋️", layout="wide")
 
-BACKEND_URL = os.getenv("BACKEND_URL")
-
-# Menu nawigacyjne
-st.sidebar.title("🏋️ Menu Aplikacji")
-wybrany_ekran = st.sidebar.radio(
-    "Przejdź do:",
-    [
-        "📋 Lista treningów i usuwanie",
-        "➕ Dodaj nowy trening",
-        "🩺 Status połączenia (/health)",
-    ],
-)
-
-st.sidebar.markdown("---")
-st.sidebar.caption(f"Połączono z: `{BACKEND_URL}`")
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
 
-# PRZEGLĄD TRENINGÓW I USUWANIE (GET /treningi, DELETE /treningi/{id})
-
-if wybrany_ekran == "📋 Lista treningów i usuwanie":
-    st.title("📋 Twoje Treningi")
-    st.write("Podgląd zapisanych jednostek treningowych oraz zarządzanie wpisami.")
-
-    naglowek_lewy, naglowek_prawy = st.columns([5, 1])
-    with naglowek_prawy:
-        if st.button("🔄 Odśwież", use_container_width=True):
-            st.rerun()
+def wywolaj_api(metoda, sciezka, **opcje):
+    try:
+        odpowiedz = requests.request(
+            metoda, f"{BACKEND_URL}{sciezka}", timeout=5, **opcje
+        )
+    except requests.RequestException as blad:
+        st.error(f"Nie udało się połączyć z backendem. {blad}")
+        return None
 
     try:
-        odpowiedz = requests.get(f"{BACKEND_URL}/treningi", timeout=5)
+        wynik = odpowiedz.json()
+    except requests.JSONDecodeError:
+        st.error(f"Nieprawidłowa odpowiedź backendu (HTTP {odpowiedz.status_code}).")
+        return None
 
-        if odpowiedz.status_code == 200:
-            lista_treningow = odpowiedz.json()
+    if not odpowiedz.ok:
+        st.error(f"Błąd API (HTTP {odpowiedz.status_code}).")
+        st.write(wynik.get("detail", wynik) if isinstance(wynik, dict) else wynik)
+        return None
 
-            if not lista_treningow:
-                st.info("Brak treningów. Dodaj swój pierwszy trening w innym ekranie.")
-            else:
-                for t in lista_treningow:
-                    with st.container(border=True):
-                        kol_id, kol_opis, kol_akcja = st.columns([1, 6, 2])
-
-                        with kol_id:
-                            st.metric(label="ID", value=t["id"])
-
-                        with kol_opis:
-                            st.subheader(t["nazwa"])
-                            st.write(f"📅 **Data:** `{t['data']}`")
-
-                        with kol_akcja:
-                            st.write("")
-                            if st.button(
-                                "🗑️ Usuń",
-                                key=f"usun_{t['id']}",
-                                use_container_width=True,
-                            ):
-                                del_res = requests.delete(
-                                    f"{BACKEND_URL}/treningi/{t['id']}", timeout=5
-                                )
-                                if del_res.status_code == 200:
-                                    st.success(f"Pomyślnie usunięto trening #{t['id']}")
-                                    st.rerun()
-                                elif del_res.status_code == 404:
-                                    st.warning("Trening już nie istnieje w bazie.")
-                                    st.rerun()
-                                else:
-                                    st.error(
-                                        f"Błąd podczas usuwania: {del_res.status_code}"
-                                    )
-        else:
-            st.error(f"Backend zwrócił kod błędu: {odpowiedz.status_code}")
-
-    except requests.exceptions.RequestException as e:
-        st.error(f"Nie udało się połączyć z backendem: {e}")
+    return wynik
 
 
-# FORMULARZ DODAWANIA NOWEGO TRENINGU (POST /treningi)
+def formularz_treningu(klucz):
+    with st.form(klucz, clear_on_submit=True):
+        nazwa = st.text_input("Nazwa treningu")
+        dzien = st.date_input("Data treningu", value=date.today())
+        if st.form_submit_button("Zapisz trening"):
+            return {"nazwa": nazwa, "data": str(dzien) if dzien else None}
 
-elif wybrany_ekran == "➕ Dodaj nowy trening":
-    st.title("➕ Dodaj Nowy Trening")
-    st.write(
-        "Wprowadź dane sesji treningowej. Backend dokona walidacji przesłanych pól."
-    )
-
-    with st.form("formularz_nowy_trening", clear_on_submit=True):
-        nazwa_treningu = st.text_input(
-            "Nazwa treningu:", placeholder="np. Góra ciała - Siła / Sesja Boulderingowa"
-        )
-        data_treningu = st.date_input("Data sesji:", value=date.today())
-
-        przycisk_zapisz = st.form_submit_button(
-            "💾 Zapisz w bazie", use_container_width=True
-        )
-
-        # Przygotowanie JSON
-        if przycisk_zapisz:
-            dane_treningu = {"data": str(data_treningu), "nazwa": nazwa_treningu}
-
-            try:
-                odpowiedz = requests.post(
-                    f"{BACKEND_URL}/treningi", json=dane_treningu, timeout=5
-                )
-
-                if odpowiedz.status_code == 201:
-                    wynik = odpowiedz.json()
-                    st.success(
-                        f"✅ Dodano trening: **{wynik['nazwa']}** (ID: {wynik['id']}) na dzień {wynik['data']}"
-                    )
-                elif odpowiedz.status_code == 400:
-                    st.error("❌ Błąd walidacji danych (400 Bad Request)")
-                    st.json(odpowiedz.json())
-                else:
-                    st.error(f"Błąd serwera: {odpowiedz.status_code}")
-
-            except requests.exceptions.RequestException as e:
-                st.error(f"Błąd połączenia z backendem: {e}")
-
-# TODO
-# EKRAN ĆWICZEŃ (DODAWANIE I WYŚWIETLANIE), OPCJONALNIE SORTOWANIE I FILTRACJA
+    return None
 
 
-# DIAGNOSTYKA SYSTEMU (/health)
+def wybierz_trening(treningi, klucz):
+    wedlug_id = {trening["id"]: trening for trening in treningi}
+    etykiety = {
+        identyfikator: f"{trening['nazwa']} · {trening['data']} · #{identyfikator}"
+        for identyfikator, trening in wedlug_id.items()
+    }
 
-elif wybrany_ekran == "🩺 Status połączenia (/health)":
-    st.title("🩺 Status Infrastruktury")
-    st.write("Weryfikacja dostępności backendu oraz połączenia backendu z PostgreSQL.")
+    # Streamlit tworzy nowy widget po zmianie etykiet. Zachowujemy wybrane ID.
+    klucz_etykiet = f"{klucz}_etykiety"
+    if st.session_state.get(klucz_etykiet) != etykiety:
+        poprzedni = st.session_state.get(klucz)
+        st.session_state[klucz] = poprzedni if poprzedni in etykiety else next(iter(etykiety))
+        st.session_state[klucz_etykiet] = etykiety
 
-    if st.button("Sprawdź stan /health", use_container_width=True):
-        try:
-            odpowiedz = requests.get(f"{BACKEND_URL}/health", timeout=5)
-            if odpowiedz.status_code == 200:
-                st.success("Wszystkie usługi działają poprawnie (kod 200 OK)")
-                st.json(odpowiedz.json())
-            else:
-                st.error(f"Awaria backendu/bazy (kod {odpowiedz.status_code})")
-                st.json(odpowiedz.json())
-        except requests.exceptions.RequestException as e:
-            st.error(f"Brak łączności z backendem: {e}")
+    wybrane_id = st.selectbox("Wybierz trening", etykiety, format_func=etykiety.get, key=klucz)
+    return wedlug_id[wybrane_id]
+
+
+def pokaz_treningi():
+    st.title("📋 Treningi")
+    treningi = wywolaj_api("GET", "/treningi")
+    if treningi is None:
+        return
+    if not treningi:
+        st.info("Brak aktywnych treningów.")
+        return
+
+    wybrany = wybierz_trening(treningi, "aktywny_trening")
+    sciezka = f"/treningi/{wybrany['id']}"
+    trening = wywolaj_api("GET", sciezka)
+    if trening is None:
+        return
+
+    st.subheader("Ćwiczenia w treningu")
+    if trening["cwiczenia"]:
+        st.table([
+            {
+                "Ćwiczenie": cwiczenie["nazwa_cwiczenia"],
+                "Serie": cwiczenie["serie"],
+                "Powtórzenia": cwiczenie["powtorzenia"],
+                "Ciężar (kg)": cwiczenie["ciezar_kg"],
+            }
+            for cwiczenie in trening["cwiczenia"]
+        ])
+    else:
+        st.info("Ten trening nie zawiera ćwiczeń.")
+
+    if st.button("Usuń trening", key=f"usun_{trening['id']}"):
+        if wywolaj_api("DELETE", sciezka) is not None:
+            st.session_state["komunikat"] = "Usunięto trening."
+            st.rerun()
+
+
+def dodaj_trening():
+    st.title("➕ Dodaj trening")
+    dane = formularz_treningu("nowy_trening")
+    if dane is not None:
+        trening = wywolaj_api("POST", "/treningi", json=dane)
+        if trening is not None:
+            st.success(f"Dodano trening #{trening['id']}.")
+
+
+def pokaz_status():
+    st.title("🩺 Status połączenia")
+    if st.button("Sprawdź stan"):
+        status = wywolaj_api("GET", "/health")
+        if status is not None:
+            st.success("Backend i baza danych działają poprawnie.")
+            st.json(status)
+
+
+st.set_page_config(page_title="Dziennik Treningowy", page_icon="🏋️", layout="wide")
+st.sidebar.title("🏋️ Dziennik treningowy")
+ekran = st.sidebar.radio(
+    "Przejdź do", ["Treningi", "Dodaj trening", "Status połączenia"]
+)
+
+komunikat = st.session_state.pop("komunikat", None)
+if komunikat:
+    st.success(komunikat)
+
+if ekran == "Treningi":
+    pokaz_treningi()
+elif ekran == "Dodaj trening":
+    dodaj_trening()
+else:
+    pokaz_status()

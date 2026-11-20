@@ -36,7 +36,7 @@ Wszystkie żądania przesyłające dane do serwera oraz odpowiedzi zwracane prze
   }
 ]
 ```
-#  2. Pobranie jednego treningów
+#  2. Pobranie jednego treningu z ćwiczeniami
 - **Metoda:** `GET`
 - **Ścieżka:** `/treningi/{id_treningu}`
 - **Kody odpowiedzi:** 
@@ -47,7 +47,11 @@ Wszystkie żądania przesyłające dane do serwera oraz odpowiedzi zwracane prze
 {
   "id": 1,
   "data": "2026-11-01",
-  "nazwa": "Góra ciała - Siła"
+  "nazwa": "Góra ciała - Siła",
+  "cwiczenia": [
+    {"id": 1, "nazwa_cwiczenia": "Wyciskanie na maszynie", "serie": 4, "powtorzenia": 10, "ciezar_kg": 45},
+    {"id": 2, "nazwa_cwiczenia": "Rozpiętki Butterfly", "serie": 3, "powtorzenia": 12, "ciezar_kg": 50}
+  ]
 }
 ```
 - **Przykładowa odpowiedź(404):**

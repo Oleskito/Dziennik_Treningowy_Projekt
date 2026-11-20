@@ -75,6 +75,14 @@ def pobierz_trening(id_treningu: int):
                 status_code=404,
                 detail="Nie znaleziono treningu",
             )
+
+        trening["cwiczenia"] = polaczenie.execute(
+            """
+            SELECT id, nazwa_cwiczenia, serie, powtorzenia, ciezar_kg
+            FROM cwiczenia WHERE trening_id = %s ORDER BY id
+            """,
+            (id_treningu,),
+        ).fetchall()
         return trening
 
 
