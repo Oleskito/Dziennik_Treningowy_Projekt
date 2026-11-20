@@ -6,6 +6,11 @@ import streamlit as st
 
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+OPERACJE = {
+    "dodanie": "Dodanie",
+    "edycja": "Edycja",
+    "usuniecie": "Usunięcie",
+}
 
 
 def wywolaj_api(metoda, sciezka, **opcje):
@@ -31,10 +36,20 @@ def wywolaj_api(metoda, sciezka, **opcje):
     return wynik
 
 
-def formularz_treningu(klucz):
-    with st.form(klucz, clear_on_submit=True):
-        nazwa = st.text_input("Nazwa treningu")
-        dzien = st.date_input("Data treningu", value=date.today())
+def zapisz_zmiane(metoda, sciezka, autor, **dane):
+    if not autor.strip():
+        st.error("Wpisz autora zmian w menu bocznym.")
+        return None
+    return wywolaj_api(metoda, sciezka, json={"autor": autor, **dane})
+
+
+def formularz_treningu(klucz, trening=None):
+    nazwa = trening["nazwa"] if trening else ""
+    dzien = date.fromisoformat(trening["data"]) if trening else date.today()
+
+    with st.form(klucz, clear_on_submit=trening is None):
+        nazwa = st.text_input("Nazwa treningu", value=nazwa)
+        dzien = st.date_input("Data treningu", value=dzien)
         if st.form_submit_button("Zapisz trening"):
             return {"nazwa": nazwa, "data": str(dzien) if dzien else None}
 
@@ -59,7 +74,7 @@ def wybierz_trening(treningi, klucz):
     return wedlug_id[wybrane_id]
 
 
-def pokaz_treningi():
+def pokaz_treningi(autor):
     st.title("📋 Treningi")
     treningi = wywolaj_api("GET", "/treningi")
     if treningi is None:
@@ -88,19 +103,57 @@ def pokaz_treningi():
     else:
         st.info("Ten trening nie zawiera ćwiczeń.")
 
-    if st.button("Usuń trening", key=f"usun_{trening['id']}"):
-        if wywolaj_api("DELETE", sciezka) is not None:
-            st.session_state["komunikat"] = "Usunięto trening."
+    with st.expander("Edytuj trening"):
+        dane = formularz_treningu(f"edycja_{trening['id']}", trening)
+        if dane is not None and zapisz_zmiane("PUT", sciezka, autor, **dane):
+            st.session_state["komunikat"] = "Zapisano zmiany treningu."
+            st.rerun()
+
+    if st.button("Przenieś do archiwum", key=f"usun_{trening['id']}"):
+        if zapisz_zmiane("DELETE", sciezka, autor):
+            st.session_state["komunikat"] = "Przeniesiono trening do archiwum."
             st.rerun()
 
 
-def dodaj_trening():
+def dodaj_trening(autor):
     st.title("➕ Dodaj trening")
     dane = formularz_treningu("nowy_trening")
     if dane is not None:
-        trening = wywolaj_api("POST", "/treningi", json=dane)
+        trening = zapisz_zmiane("POST", "/treningi", autor, **dane)
         if trening is not None:
             st.success(f"Dodano trening #{trening['id']}.")
+
+
+def pokaz_historie():
+    st.title("🕒 Historia zmian")
+    grupa = st.radio("Treningi", ["Aktywne", "Archiwum"], horizontal=True)
+    treningi = wywolaj_api("GET", "/treningi", params={"archiwalne": grupa == "Archiwum"})
+    if treningi is None:
+        return
+    if not treningi:
+        st.info("Brak treningów w tej grupie.")
+        return
+
+    trening = wybierz_trening(treningi, f"historia_{grupa}")
+    historia = wywolaj_api("GET", f"/treningi/{trening['id']}/history")
+    if historia is None:
+        return
+    if not historia:
+        st.info("Brak wpisów w historii tego treningu.")
+        return
+
+    for wpis in historia:
+        with st.container(border=True):
+            st.subheader(OPERACJE[wpis["operacja"]])
+            st.text(f"{wpis['autor']} · {wpis['czas'].replace('T', ' ', 1)}")
+            st.table([
+                {"Stan": etykieta, "Nazwa": dane["nazwa"], "Data": dane["data"]}
+                for etykieta, dane in [
+                    ("Przed zmianą", wpis["przed"]),
+                    ("Po zmianie", wpis["po"]),
+                ]
+                if dane is not None
+            ])
 
 
 def pokaz_status():
@@ -115,16 +168,20 @@ def pokaz_status():
 st.set_page_config(page_title="Dziennik Treningowy", page_icon="🏋️", layout="wide")
 st.sidebar.title("🏋️ Dziennik treningowy")
 ekran = st.sidebar.radio(
-    "Przejdź do", ["Treningi", "Dodaj trening", "Status połączenia"]
+    "Przejdź do", ["Treningi", "Dodaj trening", "Historia zmian", "Status połączenia"]
 )
+autor = st.sidebar.text_input("Autor zmian", max_chars=100)
+st.sidebar.caption("Nazwa autora jest zapisywana przy dodawaniu, edycji i archiwizacji treningu.")
 
 komunikat = st.session_state.pop("komunikat", None)
 if komunikat:
     st.success(komunikat)
 
 if ekran == "Treningi":
-    pokaz_treningi()
+    pokaz_treningi(autor)
 elif ekran == "Dodaj trening":
-    dodaj_trening()
+    dodaj_trening(autor)
+elif ekran == "Historia zmian":
+    pokaz_historie()
 else:
     pokaz_status()

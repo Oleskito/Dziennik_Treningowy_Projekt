@@ -1,0 +1,29 @@
+name: wirtualneprojekt-testy
+
+services:
+  baza:
+    image: postgres:16-alpine
+    environment: &dostep_do_bazy
+      POSTGRES_DB: baza_testowa
+      POSTGRES_USER: testy
+      POSTGRES_PASSWORD: haslo_testowe
+    tmpfs:
+      - /var/lib/postgresql/data
+    volumes:
+      - ./backend/sql/create_treningi.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "testy", "-d", "baza_testowa"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  testy:
+    build:
+      context: ./backend
+      target: testy
+    environment:
+      <<: *dostep_do_bazy
+      DB_HOST: baza
+    depends_on:
+      baza:
+        condition: service_healthy
