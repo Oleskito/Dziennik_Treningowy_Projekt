@@ -6,7 +6,7 @@ Tematem jest stworzenie dziennika treningowego, który będzie miał poprawną s
 - zainstalowany docker oraz docker compose
 
 # Kroki uruchomienia:
-1. przygotowanie zmiennych środowiskowych na podstawie .env.example
+1. Compose używa domyślnych ustawień lokalnych. Aby je nadpisać, można przygotować plik `.env` na podstawie `.env.example`.
 2. zbudowanie i uruchomienie kontenerów - docker compose up --build -d
 3. url aplikacji :
 -Frontent: http://localhost:8501

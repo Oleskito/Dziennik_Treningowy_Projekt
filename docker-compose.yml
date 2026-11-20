@@ -1,30 +1,31 @@
 services:
   baza:
     image: postgres:16-alpine
-    container_name: kontener_baza
     restart: always
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:-uzytkownik}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-haslo}
+      POSTGRES_DB: ${POSTGRES_DB:-baza}
     volumes:
       - wolumen_bazy:/var/lib/postgresql/data
       - ./backend/sql/create_treningi.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
       interval: 5s
       timeout: 5s
       retries: 5
       start_period: 5s
+    networks:
+      - dziennik
+
   backend:
     build: ./backend
-    container_name: kontener_backend
     restart: always
     environment:
-      - DB_HOST=${DB_HOST}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
+      DB_HOST: ${DB_HOST:-baza}
+      POSTGRES_USER: ${POSTGRES_USER:-uzytkownik}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-haslo}
+      POSTGRES_DB: ${POSTGRES_DB:-baza}
     ports:
       - "8000:8000"
     depends_on:
@@ -36,19 +37,24 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
-      
+    networks:
+      - dziennik
 
   frontend:
     build: ./frontend
-    container_name: kontener_frontend
     restart: always
     environment:
-      - BACKEND_URL=${BACKEND_URL}
+      BACKEND_URL: ${BACKEND_URL:-http://backend:8000}
     ports:
       - "8501:8501"
     depends_on:
       backend:
         condition: service_healthy
+    networks:
+      - dziennik
+
+networks:
+  dziennik:
 
 volumes:
   wolumen_bazy:
